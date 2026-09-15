@@ -31,6 +31,18 @@ library(slider)
 library(pracma)
 library(plotrix)
 dir <- "~/Dropbox/dropbox_work/data/assorted_fasterX/"
+#error function
+erf <- function(x){2*pnorm(x*sqrt(2)) - 1}
+# Pr.pos function
+Pr.pos.A = function(x.avg,v){
+  0.5*(1 - exp(0.5*(1 + v)^-2*x.avg^-2)*(1 - erf(x.avg^-1*(1 + v)^-1/sqrt(2))))
+}
+# Possible x values
+x_grid <- seq(0.001, 100, length.out = 2000)
+# PrPos for given x values
+PrPos_grid <- Pr.pos.A(x_grid,v=0.5)
+# Function that interpolates over the range of possible x values
+inv_fun <- approxfun(PrPos_grid, x_grid, rule = 1)
 ```
 
 ## Grantham's distance
@@ -73,12 +85,175 @@ rm(dmel.X.m)
 ### FGM visualisation
 
 ```{r}
-# z = 0.5
+# Large-effect mutations (m = 0.15)
+n = 2 #no. traits
+z = 0.5 #distance from optimum
+m = 0.15 #st. dev. mutation effects per trait
+cos.theta = -0.8 #orientation away from optimum
+theta = acos(cos.theta) #angle away from optimum
+
+O = rep(0, n) #location of optimum
+A = c(-z*cos(theta), -z*sin(theta), rep(0, n-2))  #wild type phenotype
+
+#simulated mutations
+no.mutations = 10^5
+
+#vectors to hold dominance coefficients and phenotypic effects
+h.ben = vector()
+h.del = vector()
+s.het = vector()
+s.hom = vector()
+P.mut.1 = vector()
+P.mut.2 = vector()
+
+ben.mutation = 0
+del.mutation = 0
+
+#loop to simulate mutations
+for(i in 1:no.mutations){
+  r = m*sqrt(rchisq(1, n, ncp = 0)) #mutation magnitude
+  x = rnorm(n) #vector of standard normal random variables
+  M = r*x/sqrt(sum(x^2)) #homozygous effects on the set of traits
+  
+  P.mut.1[i] = A[1] + M[1]/2
+  P.mut.2[i] = A[2] + M[2]/2
+  
+  #heterozygote and homozygote distances from optimum
+  z.het = sqrt(sum((A + M/2 - O)^2))
+  z.hom = sqrt(sum((A + M - O)^2))
+  
+  #fitness effects, per sex
+  s.het[i] = exp(-0.5*z.het^2)/exp(-0.5*z^2) - 1
+  s.hom[i] = exp(-0.5*z.hom^2)/exp(-0.5*z^2) - 1
+}
+
+#just the net beneficial alleles with SA effects
+#Condition for positive selection among overdominant mutations (expression in both sexes)
+OD.sel.a = s.het > 0 & s.het > s.hom & s.hom > (3 - s.het)/4*(sqrt(1 + 16*s.het/(3 - s.het)^2) - 1)
+#Condition for balancing selection among overdominant mutations (expression in both sexes)
+OD.sel.b = s.het > 0 & s.het > s.hom & s.hom < (3 - s.het)/4*(sqrt(1 + 16*s.het/(3 - s.het)^2) - 1)
+#Condition for positive selection among overdominant mutations (male-limited)
+OD.sel.c = s.het > 0 & s.het > s.hom & s.hom > 0 
+#Condition for unconditionally beneficial mutations (all under positive selection)
+Pos.sel = s.het > 0 & s.hom >= s.het
+
+#Multiple logical vector with mutation vector (trait 1), such that if it's false, then the point will appear at x=0,y=0
+OD.1a = OD.sel.a*P.mut.1
+OD.2a = OD.sel.a*P.mut.2
+OD.1b = OD.sel.b*P.mut.1
+OD.2b = OD.sel.b*P.mut.2
+OD.1c = OD.sel.c*P.mut.1
+OD.2c = OD.sel.c*P.mut.2
+ben.1 = Pos.sel*P.mut.1
+ben.2 = Pos.sel*P.mut.2
+
+# Expression in both sexes
+
+png("~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/theory/FGM_large_vs_small_effect_210426.png", width = 4, height = 4, units = "in", res = 600)
+#plot the optimum (open point) and phenotype of wild-type homozygote (filled point)
+plot(1:10,asp = 1, type = "n", ylim = c(-1.2*z, 1.2*z), xlim = c(-1.2*z, 1.2*z), xlab = "trait 1", ylab = "trait 2")
+#draw.circle(0, 0, z, col = "white")
+
+#plot phenotypes
+points(P.mut.1, P.mut.2, pch = 16, col = "lightgrey", cex = 0.25)
+points(ben.1, ben.2, pch = 16, col = "sky blue", cex = 0.25)
+points(OD.1b, OD.2b, pch = 16, col = "red", cex = 0.25)
+#points(OD.1c, OD.2c, pch = 16, col = "orange", cex = 0.25)
+points(OD.1a, OD.2a, pch = 16, col = "orange", cex = 0.25)
+
+points(A[1],A[2], pch = 16, cex = 1.2)
+lines(c(0,A[1]), c(0,A[2]), lty = 3)
+
+
+# Small-effect mutations (m = 0.03)
+m = 0.03 #st. dev. mutation effects per trait
+cos.theta = 0.8 #orientation away from optimum
+theta = acos(cos.theta) #angle away from optimum
+
+O = rep(0, n) #location of optimum
+A = c(-z*cos(theta), -z*sin(theta), rep(0, n-2))  #wild type phenotype
+
+#simulated mutations
+no.mutations = 10^5
+
+#vectors to hold dominance coefficients and phenotypic effects
+h.ben = vector()
+h.del = vector()
+s.het = vector()
+s.hom = vector()
+P.mut.1 = vector()
+P.mut.2 = vector()
+
+ben.mutation = 0
+del.mutation = 0
+
+#loop to simulate mutations
+for(i in 1:no.mutations){
+  r = m*sqrt(rchisq(1, n, ncp = 0)) #mutation magnitude
+  x = rnorm(n) #vector of standard normal random variables
+  M = r*x/sqrt(sum(x^2)) #homozygous effects on the set of traits
+  
+  P.mut.1[i] = A[1] + M[1]/2
+  P.mut.2[i] = A[2] + M[2]/2
+  
+  #heterozygote and homozygote distances from optimum
+  z.het = sqrt(sum((A + M/2 - O)^2))
+  z.hom = sqrt(sum((A + M - O)^2))
+  
+  #fitness effects, per sex
+  s.het[i] = exp(-0.5*z.het^2)/exp(-0.5*z^2) - 1
+  s.hom[i] = exp(-0.5*z.hom^2)/exp(-0.5*z^2) - 1
+}
+
+#just the net beneficial alleles with SA effects
+#Condition for positive selection among overdominant mutations (expression in both sexes)
+OD.sel.a = s.het > 0 & s.het > s.hom & s.hom > (3 - s.het)/4*(sqrt(1 + 16*s.het/(3 - s.het)^2) - 1)
+#Condition for balancing selection among overdominant mutations (expression in both sexes)
+OD.sel.b = s.het > 0 & s.het > s.hom & s.hom < (3 - s.het)/4*(sqrt(1 + 16*s.het/(3 - s.het)^2) - 1)
+#Condition for positive selection among overdominant mutations (male-limited)
+OD.sel.c = s.het > 0 & s.het > s.hom & s.hom > 0 
+#Condition for unconditionally beneficial mutations (all under positive selection)
+Pos.sel = s.het > 0 & s.hom >= s.het
+
+#Multiple logical vector with mutation vector (trait 1), such that if it's false, then the point will appear at x=0,y=0
+OD.1a = OD.sel.a*P.mut.1
+OD.2a = OD.sel.a*P.mut.2
+OD.1b = OD.sel.b*P.mut.1
+OD.2b = OD.sel.b*P.mut.2
+OD.1c = OD.sel.c*P.mut.1
+OD.2c = OD.sel.c*P.mut.2
+ben.1 = Pos.sel*P.mut.1
+ben.2 = Pos.sel*P.mut.2
+
+# Expression in both sexes
+
+#plot the optimum (open point) and phenotype of wild-type homozygote (filled point)
+points(1:10,asp = 1, type = "n", ylim = c(-1.2*z, 1.2*z), xlim = c(-1.2*z, 1.2*z), xlab = "trait 1", ylab = "trait 2")
+#draw.circle(0, 0, z, col = "white")
+
+#plot phenotypes
+points(P.mut.1, P.mut.2, pch = 16, col = "lightgrey", cex = 0.25)
+points(ben.1, ben.2, pch = 16, col = "sky blue", cex = 0.25)
+points(OD.1b, OD.2b, pch = 16, col = "red", cex = 0.25)
+#points(OD.1c, OD.2c, pch = 16, col = "orange", cex = 0.25)
+points(OD.1a, OD.2a, pch = 16, col = "orange", cex = 0.25)
+
+draw.circle(0, 0, z, col = NA)
+points(A[1],A[2], pch = 16, cex = 1.2)
+lines(c(0,A[1]), c(0,A[2]), lty = 3)
+points(0,0, pch = 21, bg = "white", lwd = 2, cex = 1.2)
+
+
+
+
+
+
+# Changing z (same mutation size)
 
 n = 2 #no. traits
 z = 0.5 #distance from optimum
 m = 0.15 #st. dev. mutation effects per trait
-cos.theta = 0.8 #orientation away from optimum
+cos.theta = -0.8 #orientation away from optimum
 theta = acos(cos.theta) #angle away from optimum
 
 O = rep(0, n) #location of optimum
@@ -136,11 +311,9 @@ OD.2c = OD.sel.c*P.mut.2
 ben.1 = Pos.sel*P.mut.1
 ben.2 = Pos.sel*P.mut.2
 
-# Expression in both sexes
-
-png("~/Dropbox/dropbox_work/projects/assorted_fasterX/assorted_fasterX_repo/plots/theory/FGM_large_effect.png", width = 800, height = 800,res = 200)
+png("~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/theory/FGM_close_vs_far_effect_210426.png", width = 4, height = 4, units = "in", res = 600)
 #plot the optimum (open point) and phenotype of wild-type homozygote (filled point)
-plot(1:10,asp = 1, type = "n", ylim = c(-1.2*z, 1.2*z), xlim = c(-1.2*z, 1.2*z), xlab = "trait 1", ylab = "trait 2")
+plot(1:10,asp = 1, type = "n", ylim = c(-1.2*z, 1.2*z), xlim = c(-4.8*z, 1.2*z), xlab = "trait 1", ylab = "trait 2")
 #draw.circle(0, 0, z, col = "white")
 
 #plot phenotypes
@@ -149,43 +322,16 @@ points(ben.1, ben.2, pch = 16, col = "sky blue", cex = 0.25)
 points(OD.1b, OD.2b, pch = 16, col = "red", cex = 0.25)
 #points(OD.1c, OD.2c, pch = 16, col = "orange", cex = 0.25)
 points(OD.1a, OD.2a, pch = 16, col = "orange", cex = 0.25)
-
 draw.circle(0, 0, z, col = NA)
 points(A[1],A[2], pch = 16, cex = 1.2)
 lines(c(0,A[1]), c(0,A[2]), lty = 3)
-points(0,0, pch = 21, bg = "white", lwd = 2, cex = 1.2)
-dev.off()
 
 
-
-# Male-limited
-
-png("~/Dropbox/dropbox_work/projects/assorted_fasterX/assorted_fasterX_repo/plots/theory/FGM_large_effect_ml.png", width = 800, height = 800,res = 200)
-#plot the optimum (open point) and phenotype of wild-type homozygote (filled point)
-plot(1:10,asp = 1, type = "n", ylim = c(-1.2*z, 1.2*z), xlim = c(-1.2*z, 1.2*z), xlab = "trait 1", ylab = "trait 2")
-#draw.circle(0, 0, z, col = "white")
-
-#plot phenotypes
-points(P.mut.1, P.mut.2, pch = 16, col = "lightgrey", cex = 0.25)
-points(ben.1, ben.2, pch = 16, col = "sky blue", cex = 0.25)
-points(OD.1b, OD.2b, pch = 16, col = "red", cex = 0.25)
-points(OD.1c, OD.2c, pch = 16, col = "orange", cex = 0.25)
-#points(OD.1a, OD.2a, pch = 16, col = "orange", cex = 0.25)
-
-draw.circle(0, 0, z, col = NA)
-points(A[1],A[2], pch = 16, cex = 1.2)
-lines(c(0,A[1]), c(0,A[2]), lty = 3)
-points(0,0, pch = 21, bg = "white", lwd = 2, cex = 1.2)
-dev.off()
-
-
-
-# z = 2
-
+# Z = 2 
 n = 2 #no. traits
 z = 2 #distance from optimum
 m = 0.15 #st. dev. mutation effects per trait
-cos.theta = 0.8 #orientation away from optimum
+cos.theta = 0.9 #orientation away from optimum
 theta = acos(cos.theta) #angle away from optimum
 
 O = rep(0, n) #location of optimum
@@ -243,13 +389,8 @@ OD.2c = OD.sel.c*P.mut.2
 ben.1 = Pos.sel*P.mut.1
 ben.2 = Pos.sel*P.mut.2
 
-
-# Expression in both sexes
-
-png("~/Dropbox/dropbox_work/projects/assorted_fasterX/assorted_fasterX_repo/plots/theory/FGM_small_effect.png", width = 800, height = 800,res = 200)
-
 #plot the optimum (open point) and phenotype of wild-type homozygote (filled point)
-plot(1:10,asp = 1, type = "n", ylim = c(-0.9*z, -0.2*z), xlim = c(-0.9*z, -0.2*z), xlab = "trait 1", ylab = "trait 2")
+points(1:10,asp = 1, type = "n")
 #draw.circle(0, 0, z, col = "white")
 
 #plot phenotypes
@@ -263,36 +404,16 @@ draw.circle(0, 0, z, col = NA)
 points(A[1],A[2], pch = 16, cex = 1.2)
 lines(c(0,A[1]), c(0,A[2]), lty = 3)
 points(0,0, pch = 21, bg = "white", lwd = 2, cex = 1.2)
-dev.off()
 
 
 
-# Male-limited
-
-png("~/Dropbox/dropbox_work/projects/assorted_fasterX/assorted_fasterX_repo/plots/theory/FGM_small_effect_ml.png", width = 800, height = 800,res = 200)
-#plot the optimum (open point) and phenotype of wild-type homozygote (filled point)
-plot(1:10,asp = 1, type = "n", ylim = c(-0.9*z, -0.2*z), xlim = c(-0.9*z, -0.2*z), xlab = "trait 1", ylab = "trait 2")
-#draw.circle(0, 0, z, col = "white")
-
-#plot phenotypes
-points(P.mut.1, P.mut.2, pch = 16, col = "lightgrey", cex = 0.25)
-points(ben.1, ben.2, pch = 16, col = "sky blue", cex = 0.25)
-points(OD.1b, OD.2b, pch = 16, col = "red", cex = 0.25)
-points(OD.1c, OD.2c, pch = 16, col = "orange", cex = 0.25)
-#points(OD.1a, OD.2a, pch = 16, col = "orange", cex = 0.25)
-
-draw.circle(0, 0, z, col = NA)
-points(A[1],A[2], pch = 16, cex = 1.2)
-lines(c(0,A[1]), c(0,A[2]), lty = 3)
-points(0,0, pch = 21, bg = "white", lwd = 2, cex = 1.2)
-dev.off()
 ```
 
 ### Scaled effect size vs RX/RA
 
 ```{r}
 # Define parameters
-z <- 1  # z and n cancel out in ratio, so one can set them to 1
+z <- 1  # z and n cancel out in the ratio, so I set them to 1
 n <- 1
 erf <- function(x) 2 * pnorm(x * sqrt(2)) - 1
 
@@ -312,68 +433,429 @@ Pr_fix_X_x <- function(x,v) {
   (2 * z^2 / (3 * n)) * x * (term1 - term2)
 }
 
-# Male-limited
-# Eq. S25
-Pr_fix_A_x_ml <- function(x,v) {
-  term1 <- (z^2 / n) * x * v
-  inner <- (sqrt(2) / sqrt(pi)) * exp(- (x * (1 + v) / sqrt(2))^2) -
-    x * v * (1 - erf(x * (1 + v) / sqrt(2)))
-  return(term1 * inner)
-}
-# Eq. S27 
-Pr_fix_X_x_ml <- function(x,v) {
-  term1 <- (2 * z^2) / (3 * n) * x
-  inner <- (sqrt(2) / sqrt(pi)) * exp(-(x / sqrt(2))^2) -
-    x * (1 - erf(x / sqrt(2)))
-  return(term1 * inner)
-}
-
-x_vals <- seq(0.01, 3, length.out = 500)  # Avoid x=0 to prevent division by zero
-v_vals <- c(0.1, 0.5, 0.9)
+x_vals <- seq(0.01, 2, by=0.01)  # Avoid x=0 to prevent division by zero
+v_vals <- c(0.25, 0.5, 0.75)
 
 get_ratios_both <- function(v) {
   A_vals <- 2 * Pr_fix_A_x(x_vals, v)
   X_vals <- 1.5 * Pr_fix_X_x(x_vals, v)
-  ratio <- X_vals / A_vals
-  data.frame(x = x_vals, ratio = ratio, v = as.factor(v), condition = "Both sexes")
-}
-
-get_ratios_ml <- function(v) {
-  A_vals_ml <- 2 * Pr_fix_A_x_ml(x_vals, v)
-  X_vals_ml <- 1.5 * Pr_fix_X_x_ml(x_vals, v)
-  ratio_ml <- X_vals_ml / A_vals_ml
-  data.frame(x = x_vals, ratio = ratio_ml, v = as.factor(v), condition = "Male-limited")
+  data.frame(x = x_vals, ratio = X_vals / A_vals, v = as.factor(v))
 }
 
 dd_both <- do.call(rbind, lapply(v_vals, get_ratios_both))
-dd_ml <- do.call(rbind, lapply(v_vals, get_ratios_ml))
-dd <- rbind(dd_both, dd_ml)
-dd$first_point <- ifelse(dd$x==0.01,dd$ratio,NA)
-names(dd)[3] <- "Dominance" 
 
-ggplot(subset(dd,condition=="Both sexes"), aes(x = x, y = ratio, color = Dominance)) +
-  geom_hline(yintercept = 1, linetype = "dashed", color = "grey") +
-  geom_line(size = 1) +
-  geom_point(aes(y = first_point), size = 2) +
-  scale_y_continuous(trans = 'log2',limits = c(0.5, 4)) +
-  scale_color_manual(values = c("0.1" = "lightgreen", "0.5" = "forestgreen", "0.9" = "black"))+
-  labs(x = "Scaled effect size (x)",y = expression(R["X"]/R["A"]),color = "Phenotypic dominance")+
-  theme_classic()+
-  theme(legend.position = "top",legend.title = element_text(size=15),legend.text = element_text(size=15),axis.text=element_text(size=15),axis.title=element_text(size=20))
+
+
+# Simulations (fixed v)
+
+n = 50 #no. traits
+z = 1 #distance from optimum
+z.f = z #female distance
+z.m = z #male distance
+O = rep(0, n) #location of optimum
+NeA <- 10^5 # population size
+theta = acos(1) #angle between selection vectors (1 if selection in males and females is perfectly correlated)
+A.f = c(z.f, rep(0, n-1)) #female wild type phenotype
+A.m = c(z.m*cos(theta), z.m*sin(theta), rep(0, n-2))  #male wild type phenotype
   
-ggsave(filename = "RxRa_vs_effect_size.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX/assorted_fasterX_repo/plots/theory", width = 6, height = 4, dpi = 600)
+# Variables
+v <- c(0.25,0.5,"U",0.75)
+NeX.NeA <- c(0.6,0.75,1)
+fisher_x <- c(0.01,0.5,1,1.5,2)
 
-ggplot(subset(dd,condition=="Male-limited"), aes(x = x, y = ratio, color = Dominance)) +
+param_grid <- expand.grid(v=v, NeX.NeA=NeX.NeA, fisher_x=fisher_x)
+ncomb <- nrow(param_grid)
+RxRa <- rep(NA_real_, ncomb)
+
+for (cols in 1:ncomb){
+  
+vval <- param_grid$v[cols]
+NeX.NeAval <- param_grid$NeX.NeA[cols]
+fisher_xval <- param_grid$fisher_x[cols]
+
+  
+  ## Mutational information
+  n.ben.fix.A = 0
+  n.ben.fix.X = 0
+  n.ben.tofix = 10^3
+  # Number of mutations to start with
+  no.mutations = 0
+  max.mutations = 10^7
+  
+  # Create vectors to hold selection coefficients of simulated mutations, so that we can later estimate the fraction of trade-offs among fixed mutations:
+  s.het.f = vector() # female selection coefficients
+  s.hom.f = vector() # female selection coefficients
+  s.het.m = vector() # male selection coefficients
+  s.hom.m = vector() # male selection coefficients
+
+  m = ((2*z)/n)*fisher_xval #st. dev. mutation effects per trait
+  
+# While we still haven't reached the target, keep simulating new mutations
+while((n.ben.fix.A<n.ben.tofix | n.ben.fix.X<n.ben.tofix) & no.mutations<max.mutations){
+    
+    no.mutations = no.mutations + 1
+    x = rnorm(n) #vector of standard normal random variables
+    r = m*sqrt(rchisq(1, n, ncp = 0)) # magnitude of mutations
+    M = r*x/sqrt(sum(x^2)) #effects on the set of traits
+    
+    if(vval=="U"){
+    vval <- as.numeric(as.character(runif(1,min=0,max=1)))
+    }
+    #heterozygote and homozygote distances from optimum
+    z.het.f = sqrt(sum((A.f + M*as.numeric(as.character(vval)) - O)^2))
+    z.hom.f = sqrt(sum((A.f + M - O)^2))
+    z.het.m = sqrt(sum((A.m + M*as.numeric(as.character(vval)) - O)^2))
+    z.hom.m = sqrt(sum((A.m + M - O)^2))
+    
+    #heterozygous and homozygous fitness effects, per sex
+    s.het.f[no.mutations] = exp(-0.5*z.het.f^2)/exp(-0.5*z^2) - 1
+    s.hom.f[no.mutations] = exp(-0.5*z.hom.f^2)/exp(-0.5*z^2) - 1
+    s.het.m[no.mutations] = exp(-0.5*z.het.m^2)/exp(-0.5*z^2) - 1
+    s.hom.m[no.mutations] = exp(-0.5*z.hom.m^2)/exp(-0.5*z^2) - 1
+    
+    #Sex-specific fitnesses of each genotype
+    wAA.f <- 1
+    wAA.m <- 1
+    wAa.f <- 1 + s.het.f[no.mutations]
+    wAa.m <- 1 + s.het.m[no.mutations]
+    waa.f <- 1 + s.hom.f[no.mutations]
+    waa.m <- 1 + s.hom.m[no.mutations]
+    
+    # Is the mutation under positive selection?
+    #Positive selection on both X and autosomes
+    Pos.sel = s.het.m[no.mutations] > 0 & s.hom.m[no.mutations] >= s.het.m[no.mutations]
+    #Positive selection on the X only (mutation is expressed in both sexes)
+    OD.sel.a = s.het.m[no.mutations] > 0 & s.het.m[no.mutations] > s.hom.m[no.mutations] & s.hom.m[no.mutations] > (3 - s.het.m[no.mutations])/4*(sqrt(1 + 16*s.het.m[no.mutations]/(3 - s.het.m[no.mutations])^2) - 1)
+    
+    N.f = round(NeA*(2*NeX.NeAval)/(9-8*NeX.NeAval)) # N.f, given specified NeA and NeX.NeA ratio
+    Nmf.ratio = (9 - 8*NeX.NeAval)/(16*NeX.NeAval - 9) #ratio of N.m to N.f
+    N.m = round(N.f*Nmf.ratio) # N.m, given NeX.NeA ratio
+    
+    # Is the new mutation X-linked (0) or autosomal (1)? 
+    if(rbinom(1,1,c(NeA,NeA*NeX.NeAval)/sum(c(NeA,NeA*NeX.NeAval)))==1)
+      {
+    #If the allele is net-beneficial, evolve it to fixation or loss
+    if(isTRUE(Pos.sel)){ 
+    #Initial frequency of the a allele in the population
+    p.m = 1/(4*N.m)
+    p.f = 1/(4*N.f)
+    time = 0
+       
+      while ((p.m + p.f) > 0 & (2 - p.f - p.m) > 0 & time<4*NeA)
+        {  # While the mutation is not fixed
+
+        #Genotype freqs. among zygotes after random mating
+        zygotes = c(p.f*p.m, p.f*(1 - p.m) + p.m*(1 - p.f), (1 - p.f)*(1 - p.m))
+        
+        #Mean female and male fitness
+        wbar.f = sum(zygotes*c(waa.f, wAa.f, wAA.f))
+        wbar.m = sum(zygotes*c(waa.m, wAa.m, wAA.m))
+        
+        #Expected freqs. in adults after selection
+        adult.females = zygotes*c(waa.f, wAa.f, wAA.f)/wbar.f
+        adult.males = zygotes*c(waa.m, wAa.m, wAA.m)/wbar.m
+        
+        #Multinomial sampling
+        females.drift = rmultinom(1, N.f, adult.females)/N.f
+        males.drift = rmultinom(1, N.m, adult.males)/N.m
+        
+        #Completion of the recursion
+        p.f = females.drift[1] + females.drift[2]/2
+        p.m = males.drift[1] + males.drift[2]/2
+        
+        time=time+1
+        
+      }
+      #fixations[no.mutations] <- p
+      #If fixation, record it and add it to fixation counter
+      if(p.f==1){
+        n.ben.fix.A = n.ben.fix.A + 1 # count to n.ben.tofix
+        print("Autosome fixed!")
+      } 
+    }
+    }
+    else{
+
+      #If the allele is net-beneficial, evolve it to fixation or loss
+      if(isTRUE(Pos.sel)|isTRUE(OD.sel.a)){  
+      #Initial frequency of the a allele in the population
+        p.m = 1/(3*N.m)
+        p.f = 1/(3*N.f)
+        time = 0
+        while ((p.m + p.f) > 0 & (2 - p.f - p.m) > 0 & time<4*NeA*NeX.NeAval)
+          {  # While the mutation is not fixed
+          
+          #Genotype freqs. among zygotes after random mating
+          zygotes.f = c(p.f*p.m, p.f*(1 - p.m) + p.m*(1 - p.f), (1 - p.f)*(1 - p.m))
+          zygotes.m = c(p.f, (1 - p.f))
+          
+          #Mean female and male fitness
+          wbar.f = sum(zygotes.f*c(waa.f, wAa.f, wAA.f))
+          wbar.m = sum(zygotes.m*c(waa.m, wAA.m))
+          
+          #Expected freqs. in adults after selection
+          adult.females = zygotes.f*c(waa.f, wAa.f, wAA.f)/wbar.f
+          adult.males = zygotes.m*c(waa.m, wAA.m)/wbar.m
+          
+          #Multinomial sampling
+          females.drift = rmultinom(1, N.f, adult.females)/N.f
+          males.drift = rmultinom(1, N.m, adult.males)/N.m
+          
+          #Completion of the recursion
+          p.f = females.drift[1] + females.drift[2]/2
+          p.m = males.drift[1]
+          
+          time=time+1
+        }
+        #fixations[no.mutations] <- p
+        #If fixation, record it and add it to fixation counter
+        if(p.f==1)
+          {n.ben.fix.X = n.ben.fix.X + 1 # count to n.ben.tofix
+        print("X fixed!")
+        } 
+      } 
+    }
+    
+}
+  RxRa[cols] <- n.ben.fix.X/n.ben.fix.A
+  print(param_grid[cols,])
+}
+
+param_grid$Rx_Ra <- RxRa
+
+
+# Simulations (variable v)
+
+n = 50 #no. traits
+z = 1 #distance from optimum
+z.f = z #female distance
+z.m = z #male distance
+O = rep(0, n) #location of optimum
+NeA <- 10^5 # population size
+theta = acos(1) #angle between selection vectors (1 if selection in males and females is perfectly correlated)
+A.f = c(z.f, rep(0, n-1)) #female wild type phenotype
+A.m = c(z.m*cos(theta), z.m*sin(theta), rep(0, n-2))  #male wild type phenotype
+  
+# Variables
+v <- c("U")
+NeX.NeA <- c(0.75)
+fisher_x <- c(0.01,0.5,1,1.5,2)
+
+param_grid <- expand.grid(v=v, NeX.NeA=NeX.NeA, fisher_x=fisher_x)
+ncomb <- nrow(param_grid)
+RxRa <- rep(NA_real_, ncomb)
+min.sim = rep(NA_real_, ncomb)
+
+for (cols in 1:ncomb){
+  
+vval <- param_grid$v[cols]
+NeX.NeAval <- param_grid$NeX.NeA[cols]
+fisher_xval <- param_grid$fisher_x[cols]
+
+  
+  ## Mutational information
+  n.ben.fix.A = 0
+  n.ben.fix.X = 0
+  n.ben.tofix = 10^4
+  # Number of mutations to start with
+  no.mutations = 0
+  max.mutations = 10^9
+  m = ((2*z)/n)*fisher_xval #st. dev. mutation effects per trait
+  
+# While we still haven't reached the target, keep simulating new mutations
+while((n.ben.fix.A<n.ben.tofix | n.ben.fix.X<n.ben.tofix) & no.mutations<max.mutations){
+    
+    no.mutations = no.mutations + 1
+    x = rnorm(n) #vector of standard normal random variables
+    r = m*sqrt(rchisq(1, n, ncp = 0)) # magnitude of mutations
+    M = r*x/sqrt(sum(x^2)) #effects on the set of traits
+    
+    if(vval=="U"){
+    vval <- runif(1,min=0,max=1)
+    }
+    #heterozygote and homozygote distances from optimum
+    z.het.f = sqrt(sum((A.f + M*as.numeric(as.character(vval)) - O)^2))
+    z.hom.f = sqrt(sum((A.f + M - O)^2))
+    z.het.m = sqrt(sum((A.m + M*as.numeric(as.character(vval)) - O)^2))
+    z.hom.m = sqrt(sum((A.m + M - O)^2))
+    
+    #heterozygous and homozygous fitness effects, per sex
+    s.het.f = exp(-0.5*z.het.f^2)/exp(-0.5*z^2) - 1
+    s.hom.f = exp(-0.5*z.hom.f^2)/exp(-0.5*z^2) - 1
+    s.het.m = exp(-0.5*z.het.m^2)/exp(-0.5*z^2) - 1
+    s.hom.m = exp(-0.5*z.hom.m^2)/exp(-0.5*z^2) - 1
+    
+    #Sex-specific fitnesses of each genotype
+    wAA.f <- 1
+    wAA.m <- 1
+    wAa.f <- 1 + s.het.f
+    wAa.m <- 1 + s.het.m
+    waa.f <- 1 + s.hom.f
+    waa.m <- 1 + s.hom.m
+    
+    # Is the mutation under positive selection?
+    #Positive selection on both X and autosomes
+    Pos.sel = s.het.m > 0 & s.hom.m >= s.het.m
+    #Positive selection on the X only (mutation is expressed in both sexes)
+    OD.sel.a = s.het.m > 0 & s.het.m > s.hom.m & s.hom.m > (3 - s.het.m)/4*(sqrt(1 + 16*s.het.m/(3 - s.het.m)^2) - 1)
+    
+    N.f = round(NeA*(2*NeX.NeAval)/(9-8*NeX.NeAval)) # N.f, given specified NeA and NeX.NeA ratio
+    Nmf.ratio = (9 - 8*NeX.NeAval)/(16*NeX.NeAval - 9) #ratio of N.m to N.f
+    N.m = round(N.f*Nmf.ratio) # N.m, given NeX.NeA ratio
+    
+    # Is the new mutation X-linked (0) or autosomal (1)? 
+    if(rbinom(1,1,c(NeA,NeA*NeX.NeAval)/sum(c(NeA,NeA*NeX.NeAval)))==1)
+      {
+    #If the allele is net-beneficial, evolve it to fixation or loss
+    if(isTRUE(Pos.sel)){ 
+    #Initial frequency of the a allele in the population
+    p.m = 1/(4*N.m)
+    p.f = 1/(4*N.f)
+    time = 0
+       
+      while ((p.m + p.f) > 0 & (2 - p.f - p.m) > 0 & time<4*NeA)
+        {  # While the mutation is not fixed
+
+        #Genotype freqs. among zygotes after random mating
+        zygotes = c(p.f*p.m, p.f*(1 - p.m) + p.m*(1 - p.f), (1 - p.f)*(1 - p.m))
+        
+        #Mean female and male fitness
+        wbar.f = sum(zygotes*c(waa.f, wAa.f, wAA.f))
+        wbar.m = sum(zygotes*c(waa.m, wAa.m, wAA.m))
+        
+        #Expected freqs. in adults after selection
+        adult.females = zygotes*c(waa.f, wAa.f, wAA.f)/wbar.f
+        adult.males = zygotes*c(waa.m, wAa.m, wAA.m)/wbar.m
+        
+        #Multinomial sampling
+        females.drift = rmultinom(1, N.f, adult.females)/N.f
+        males.drift = rmultinom(1, N.m, adult.males)/N.m
+        
+        #Completion of the recursion
+        p.f = females.drift[1] + females.drift[2]/2
+        p.m = males.drift[1] + males.drift[2]/2
+        
+        time=time+1
+        
+      }
+      #fixations[no.mutations] <- p
+      #If fixation, record it and add it to fixation counter
+      if(p.f==1){
+        n.ben.fix.A = n.ben.fix.A + 1 # count to n.ben.tofix
+        print("Autosome fixed!")
+      } 
+    }
+    }
+    else{
+
+      #If the allele is net-beneficial, evolve it to fixation or loss
+      if(isTRUE(Pos.sel)|isTRUE(OD.sel.a)){  
+      #Initial frequency of the a allele in the population
+        p.m = 1/(3*N.m)
+        p.f = 1/(3*N.f)
+        time = 0
+        while ((p.m + p.f) > 0 & (2 - p.f - p.m) > 0 & time<4*NeA*NeX.NeAval)
+          {  # While the mutation is not fixed
+          
+          #Genotype freqs. among zygotes after random mating
+          zygotes.f = c(p.f*p.m, p.f*(1 - p.m) + p.m*(1 - p.f), (1 - p.f)*(1 - p.m))
+          zygotes.m = c(p.f, (1 - p.f))
+          
+          #Mean female and male fitness
+          wbar.f = sum(zygotes.f*c(waa.f, wAa.f, wAA.f))
+          wbar.m = sum(zygotes.m*c(waa.m, wAA.m))
+          
+          #Expected freqs. in adults after selection
+          adult.females = zygotes.f*c(waa.f, wAa.f, wAA.f)/wbar.f
+          adult.males = zygotes.m*c(waa.m, wAA.m)/wbar.m
+          
+          #Multinomial sampling
+          females.drift = rmultinom(1, N.f, adult.females)/N.f
+          males.drift = rmultinom(1, N.m, adult.males)/N.m
+          
+          #Completion of the recursion
+          p.f = females.drift[1] + females.drift[2]/2
+          p.m = males.drift[1]
+          
+          time=time+1
+        }
+        #fixations[no.mutations] <- p
+        #If fixation, record it and add it to fixation counter
+        if(p.f==1)
+          {n.ben.fix.X = n.ben.fix.X + 1 # count to n.ben.tofix
+        print("X fixed!")
+        } 
+      } 
+    }
+    
+}
+  min.sim[cols] <- min(n.ben.fix.X,n.ben.fix.A)
+  RxRa[cols] <- n.ben.fix.X/n.ben.fix.A
+  print(param_grid[cols,])
+}
+
+
+
+param_grid <- read.csv("~/Downloads/param_grid.txt")
+names(param_grid) <- c("v","NeX.NeA","x","sim")
+param_grid2 <- subset(param_grid,v!="U")
+
+param_grid_uniform <- read.csv("~/Downloads/param_grid_uniform.txt")
+names(param_grid_uniform) <- c("v","NeX.NeA","x","sim")
+param_grid3 <- rbind(param_grid2,param_grid_uniform)
+
+dd_both$NeX.NeA <- 0.75
+dd_both0.6 <- dd_both
+dd_both0.6$NeX.NeA <- 0.6
+dd_both0.6$ratio <- dd_both0.6$ratio*0.6/0.75
+dd_both1 <- dd_both
+dd_both1$NeX.NeA <- 1
+dd_both1$ratio <- dd_both1$ratio*1/0.75
+dd_three <- as.data.frame(rbind(dd_both0.6,dd_both,dd_both1))
+
+dd3 <- Reduce(function(...) merge(...,by=c("x","v","NeX.NeA"),all=T), list(param_grid3,dd_three))
+dd3$NeX.NeA <- as.factor(dd3$NeX.NeA)
+
+ggplot(subset(dd3,NeX.NeA==0.75 & v!="U"), aes(x = x, y = ratio, color = v)) +
   geom_hline(yintercept = 1, linetype = "dashed", color = "grey") +
   geom_line(size = 1) +
-  geom_point(aes(y = first_point), size = 2) +
   scale_y_continuous(trans = 'log2',limits = c(0.5, 4)) +
-  scale_color_manual(values = c("0.1" = "lightgreen", "0.5" = "forestgreen", "0.9" = "black"))+
-  labs(x = "Scaled effect size (x)",y = expression(R["X"]/R["A"]),color = "Phenotypic dominance")+
+  geom_point(size=2,data=subset(dd3,NeX.NeA==0.75 & v!="U"),aes(x=x,y=sim))+
+  geom_point(size=2,data=subset(dd3,NeX.NeA==0.75 & v=="U" & x==0.01),aes(x=x,y=sim),shape=1,col="forestgreen")+
+  scale_color_manual(values = c("0.25" = "lightgreen", "0.5" = "forestgreen", "0.75" = "black"))+
+  labs(x = "Scaled effect size (x)",y = expression(R["X"]/R["A"]),color = "Trait dominance")+
   theme_classic()+
   theme(legend.position = "top",legend.title = element_text(size=15),legend.text = element_text(size=15),axis.text=element_text(size=15),axis.title=element_text(size=20))
 
-ggsave(filename = "RxRa_vs_effect_size_male_limited.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX/assorted_fasterX_repo/plots/theory", width = 6, height = 4, dpi = 600)
+ggsave(filename = "RxRa_vs_effect_size_300426.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/theory/", width = 5, height = 4, dpi = 600)
+
+
+
+dd_both$NeX.NeA <- 0.75
+dd_both0.6 <- dd_both
+dd_both0.6$NeX.NeA <- 0.6
+dd_both0.6$ratio <- dd_both0.6$ratio*0.6/0.75
+dd_both1 <- dd_both
+dd_both1$NeX.NeA <- 1
+dd_both1$ratio <- dd_both1$ratio*1/0.75
+dd_three <- as.data.frame(rbind(dd_both0.6,dd_both,dd_both1))
+
+dd2 <- Reduce(function(...) merge(...,by=c("x","v","NeX.NeA"),all=T), list(param_grid,dd_three))
+dd2$NeX.NeA <- as.factor(dd2$NeX.NeA)
+
+
+ggplot(subset(dd2,v=="0.5"), aes(x = x, y = ratio, col = NeX.NeA)) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "grey") +
+  geom_line(size=1) +
+  scale_y_continuous(trans = 'log2',limits = c(0.5, 4)) +
+  geom_point(size=2,data=subset(dd2,v=="0.5"),aes(x=x,y=sim))+
+  labs(x = "Scaled effect size (x)",y = expression(R["X"]/R["A"]),color = expression(N["eX"]/N["eA"]))+
+  theme_classic()+
+  scale_color_manual(values = c("0.6" = "lightblue", "0.75" = "blue", "1" = "black"))+
+  theme(legend.position = "top",legend.title = element_text(size=15),legend.text = element_text(size=15),axis.text=element_text(size=15),axis.title=element_text(size=20))
+
+
+ggsave(filename = "RxRa_vs_effect_size_NeXNeA_300426.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/theory/", width = 5, height = 4, dpi = 600)
 
 ```
 
@@ -1201,10 +1683,14 @@ dmel.A.m$SIFT_polymorphic <- with(dmel.A.m,ifelse(((Allele1=="A" & AlleleAlt=="T
                                                                        ifelse(((Allele1=="T" & AlleleAlt=="G")|(Allele1=="G" & AlleleAlt=="T")),abs(SIFT_T-SIFT_G),
                                                                               ifelse(((Allele1=="C" & AlleleAlt=="G")|(Allele1=="G" & AlleleAlt=="C")),abs(SIFT_C-SIFT_G),NA)))))))
 
-# Split sites into RR bins and record value of RR
+# Split sites into RR bins and record value of RR (# rerun this for final ms)
 dmel.A.m <- dmel.A.m[order(dmel.A.m$Chrom,dmel.A.m$Pos),]
-dmel.A.m$RR_bin <- paste(dmel.A.m$Chrom,cut(dmel.A.m$Pos, breaks = rr.X$Start,include.lowest = TRUE,right = FALSE,labels=F),sep="_")
-dmel.A.m <- merge(dmel.A.m,rr.X[,c("Chrom","RR_bin","cM_Mb")],by=c("Chrom","RR_bin"),all.x=T)
+dmel.A.m$RR_bin <- NA
+dmel.A.m$RR_bin[dmel.A.m$Chrom=="2L"] <- paste(dmel.A.m$Chrom[dmel.A.m$Chrom=="2L"],cut(dmel.A.m$Pos[dmel.A.m$Chrom=="2L"], breaks = rr.A$Start[rr.A$Chrom=="2L"],include.lowest = TRUE,right = FALSE,labels=F),sep="_")
+dmel.A.m$RR_bin[dmel.A.m$Chrom=="2R"] <- paste(dmel.A.m$Chrom[dmel.A.m$Chrom=="2R"],cut(dmel.A.m$Pos[dmel.A.m$Chrom=="2R"], breaks = rr.A$Start[rr.A$Chrom=="2R"],include.lowest = TRUE,right = FALSE,labels=F),sep="_")
+dmel.A.m$RR_bin[dmel.A.m$Chrom=="3L"] <- paste(dmel.A.m$Chrom[dmel.A.m$Chrom=="3L"],cut(dmel.A.m$Pos[dmel.A.m$Chrom=="3L"], breaks = rr.A$Start[rr.A$Chrom=="3L"],include.lowest = TRUE,right = FALSE,labels=F),sep="_")
+dmel.A.m$RR_bin[dmel.A.m$Chrom=="3R"] <- paste(dmel.A.m$Chrom[dmel.A.m$Chrom=="3R"],cut(dmel.A.m$Pos[dmel.A.m$Chrom=="3R"], breaks = rr.A$Start[rr.A$Chrom=="3R"],include.lowest = TRUE,right = FALSE,labels=F),sep="_")
+dmel.A.m <- merge(dmel.A.m[,-c("cM_Mb")],rr.A[,c("Chrom","RR_bin","cM_Mb")],by=c("Chrom","RR_bin"),all.x=T)
 
 # GC-conservative status
 dmel.A.m$GC_conservative <- with(dmel.A.m,ifelse( (Allele1 %in% c("G","C") & AlleleAlt %in% c("G","C") & !is.na(Mutation_type_polymorphic)) | (Allele1 %in% c("A","T") & AlleleAlt %in% c("A","T") & !is.na(Mutation_type_polymorphic)) | (REF %in% c("G","C") & SIM %in% c("G","C") & !is.na(Mutation_type_divergent)) |  (REF %in% c("A","T") & SIM %in% c("A","T") & !is.na(Mutation_type_divergent)) ,1,ifelse( (Allele1 %in% c("G","C") & AlleleAlt %in% c("T","A") & !is.na(Mutation_type_polymorphic)) | (Allele1 %in% c("G","C") & AlleleAlt %in% c("A","T") & !is.na(Mutation_type_polymorphic)) | (REF %in% c("G","C") & SIM %in% c("A","T") & !is.na(Mutation_type_divergent)) |  (REF %in% c("G","C") & SIM %in% c("A","T") & !is.na(Mutation_type_divergent)),0,NA)))
@@ -1337,10 +1823,14 @@ dmel.A.m$SIFT_polymorphic <- with(dmel.A.m,ifelse(((Allele1=="A" & AlleleAlt=="T
                                                                        ifelse(((Allele1=="T" & AlleleAlt=="G")|(Allele1=="G" & AlleleAlt=="T")),abs(SIFT_T-SIFT_G),
                                                                               ifelse(((Allele1=="C" & AlleleAlt=="G")|(Allele1=="G" & AlleleAlt=="C")),abs(SIFT_C-SIFT_G),NA)))))))
 
-# Split sites into RR bins and record value of RR
+# Split sites into RR bins and record value of RR (# rerun this for final ms)
 dmel.A.m <- dmel.A.m[order(dmel.A.m$Chrom,dmel.A.m$Pos),]
-dmel.A.m$RR_bin <- paste(dmel.A.m$Chrom,cut(dmel.A.m$Pos, breaks = rr.X$Start,include.lowest = TRUE,right = FALSE,labels=F),sep="_")
-dmel.A.m <- merge(dmel.A.m,rr.X[,c("Chrom","RR_bin","cM_Mb")],by=c("Chrom","RR_bin"),all.x=T)
+dmel.A.m$RR_bin <- NA
+dmel.A.m$RR_bin[dmel.A.m$Chrom=="2L"] <- paste(dmel.A.m$Chrom[dmel.A.m$Chrom=="2L"],cut(dmel.A.m$Pos[dmel.A.m$Chrom=="2L"], breaks = rr.A$Start[rr.A$Chrom=="2L"],include.lowest = TRUE,right = FALSE,labels=F),sep="_")
+dmel.A.m$RR_bin[dmel.A.m$Chrom=="2R"] <- paste(dmel.A.m$Chrom[dmel.A.m$Chrom=="2R"],cut(dmel.A.m$Pos[dmel.A.m$Chrom=="2R"], breaks = rr.A$Start[rr.A$Chrom=="2R"],include.lowest = TRUE,right = FALSE,labels=F),sep="_")
+dmel.A.m$RR_bin[dmel.A.m$Chrom=="3L"] <- paste(dmel.A.m$Chrom[dmel.A.m$Chrom=="3L"],cut(dmel.A.m$Pos[dmel.A.m$Chrom=="3L"], breaks = rr.A$Start[rr.A$Chrom=="3L"],include.lowest = TRUE,right = FALSE,labels=F),sep="_")
+dmel.A.m$RR_bin[dmel.A.m$Chrom=="3R"] <- paste(dmel.A.m$Chrom[dmel.A.m$Chrom=="3R"],cut(dmel.A.m$Pos[dmel.A.m$Chrom=="3R"], breaks = rr.A$Start[rr.A$Chrom=="3R"],include.lowest = TRUE,right = FALSE,labels=F),sep="_")
+dmel.A.m <- merge(dmel.A.m,rr.A[,c("Chrom","RR_bin","cM_Mb")],by=c("Chrom","RR_bin"),all.x=T)
 
 # GC-conservative status
 dmel.A.m$GC_conservative <- with(dmel.A.m,ifelse( (Allele1 %in% c("G","C") & AlleleAlt %in% c("G","C") & !is.na(Mutation_type_polymorphic)) | (Allele1 %in% c("A","T") & AlleleAlt %in% c("A","T") & !is.na(Mutation_type_polymorphic)) | (REF %in% c("G","C") & YAK %in% c("G","C") & !is.na(Mutation_type_divergent)) |  (REF %in% c("A","T") & YAK %in% c("A","T") & !is.na(Mutation_type_divergent)) ,1,ifelse( (Allele1 %in% c("G","C") & AlleleAlt %in% c("T","A") & !is.na(Mutation_type_polymorphic)) | (Allele1 %in% c("G","C") & AlleleAlt %in% c("A","T") & !is.na(Mutation_type_polymorphic)) | (REF %in% c("G","C") & YAK %in% c("A","T") & !is.na(Mutation_type_divergent)) |  (REF %in% c("G","C") & YAK %in% c("A","T") & !is.na(Mutation_type_divergent)),0,NA)))
@@ -3367,6 +3857,10 @@ cor.test(dd2$grantham_score,dd2$PiN_over_PiS_ratio, method="spearman")
 # rho = -0.2116693, p = 0.05783
 cor.test(dd2$grantham_score,dd2$omegaNA_ratio, method="spearman")
 # rho = -0.4854659, p = 5.012e-06
+cor.test(dd$grantham_score[dd$chromosome=="Autosomes"],dd$GammaExpo.pos_prop[dd$chromosome=="Autosomes"],method="spearman")
+# rho = -0.3585377, p = 0.001014
+cor.test(dd$grantham_score[dd$chromosome=="X"],dd$GammaExpo.pos_prop[dd$chromosome=="X"],method="spearman")
+# rho = -0.4679673, p = 1.057e-05
 ```
 
 ###### Plots
@@ -3382,7 +3876,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=PiN_over_PiS))+
      xlab("Amino acid dissimilarity \n(Grantham's distance)")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "dmel_piN_piS_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_piN_piS_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Grantham score
 ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
@@ -3396,7 +3890,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -3409,7 +3903,33 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+
+
+# Correlation between Pr(Pos) and grantham score
+ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=GammaExpo.pos_prop))+
+     geom_point(size=2)+
+     geom_smooth(method="loess",col="black")+
+     geom_point(size=2)+
+     theme_classic()+
+     theme(axis.title = element_text(size=20),axis.text = element_text(size=15),legend.position="top",legend.title=element_blank())+
+     xlab("Amino acid dissimilarity \n(Grantham's distance)")+
+     ylab("Pr(Pos)")+ylim(c(0,0.1))
+
+ggsave(filename = "dmel_PrPos_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+
+# Correlation between x.avg and grantham score
+ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=inv_fun(GammaExpo.pos_prop)))+
+     geom_point(size=2)+
+     geom_smooth(method="loess",col="black")+
+     geom_point(size=2)+
+     theme_classic()+
+     theme(axis.title = element_text(size=20),axis.text = element_text(size=15),legend.position="top",legend.title=element_blank())+
+     xlab("Amino acid dissimilarity \n(Grantham's distance)")+
+     ylab("Inferred average scaled effect")
+     ylim(c(0,100))
+     
+ggsave(filename = "dmel_avgx_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ###### folded
@@ -3487,7 +4007,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_Grantham_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Grantham_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -3500,7 +4020,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ##### 0 vs. 4-fold
@@ -3595,6 +4115,8 @@ cor.test(dd2$grantham_score,dd2$PiN_over_PiS_ratio, method="spearman")
 # rho = -0.3296332, p = 0.004402
 cor.test(dd2$grantham_score,dd2$omegaNA_ratio, method="spearman")
 # rho = -0.5174432, p = 3.25e-06
+cor.test(dd$grantham_score[dd$chromosome=="Autosomes"],dd$GammaExpo.pos_prop[dd$chromosome=="Autosomes"],method="spearman")
+# rho = -0.4937783, p = 9.029e-06
 ```
 
 ###### Plots
@@ -3610,7 +4132,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=PiN_over_PiS))+
      xlab("Amino acid dissimilarity \n(Grantham's distance)")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "dmel_piN_piS_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_piN_piS_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Grantham score
 ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
@@ -3624,7 +4146,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -3637,7 +4159,19 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+
+# Correlation between Pr(Pos) and grantham score
+ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=GammaExpo.pos_prop))+
+     geom_point(size=2)+
+     geom_smooth(method="loess",col="black")+
+     geom_point(size=2)+
+     theme_classic()+
+     theme(axis.title = element_text(size=20),axis.text = element_text(size=15),legend.position="top",legend.title=element_blank())+
+     xlab("Amino acid dissimilarity \n(Grantham's distance)")+
+     ylab("Pr(Pos)")+ylim(c(0,0.1))
+
+ggsave(filename = "dmel_PrPos_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ##### nonsyn vs. syn, FB
@@ -3747,7 +4281,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=PiN_over_PiS))+
      xlab("Amino acid dissimilarity \n(Grantham's distance)")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "dmel_piN_piS_vs_Grantham_fb.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_piN_piS_vs_Grantham_fb.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Grantham score
 ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
@@ -3761,7 +4295,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_Grantham_fb.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Grantham_fb.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -3774,7 +4308,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_fb.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_fb.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ###### folded
@@ -3852,7 +4386,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_Grantham_folded_fb.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Grantham_folded_fb.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -3865,7 +4399,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_folded_fb.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_folded_fb.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ##### nonsyn vs. syn, UB
@@ -3975,7 +4509,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=PiN_over_PiS))+
      xlab("Amino acid dissimilarity \n(Grantham's distance)")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "dmel_piN_piS_vs_Grantham_ub.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_piN_piS_vs_Grantham_ub.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Grantham score
 ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
@@ -3989,7 +4523,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_Grantham_ub.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Grantham_ub.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -4002,7 +4536,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_ub.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_ub.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ###### folded
@@ -4080,7 +4614,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_Grantham_folded_ub.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Grantham_folded_ub.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -4093,7 +4627,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_folded_ub.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_folded_ub.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ##### nonsyn vs. syn, MB
@@ -4203,7 +4737,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=PiN_over_PiS))+
      xlab("Amino acid dissimilarity \n(Grantham's distance)")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "dmel_piN_piS_vs_Grantham_mb.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_piN_piS_vs_Grantham_mb.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Grantham score
 ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
@@ -4217,7 +4751,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_Grantham_mb.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Grantham_mb.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -4230,7 +4764,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_mb.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_mb.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ###### folded
@@ -4308,7 +4842,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_Grantham_folded_mb.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Grantham_folded_mb.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -4321,7 +4855,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_folded_mb.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_folded_mb.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ### *D. yak* outgroup
@@ -4798,6 +5332,8 @@ cor.test(dd2$grantham_score,dd2$PiN_over_PiS_ratio, method="spearman")
 # rho = -0.1684726, p = 0.1327
 cor.test(dd2$grantham_score,dd2$omegaNA_ratio, method="spearman")
 # rho = -0.4651313, p = 1.38e-05
+cor.test(dd$grantham_score[dd$chromosome=="Autosomes"],dd$GammaExpo.pos_prop[dd$chromosome=="Autosomes"],method="spearman")
+# rho = -0.4043189, p = 0.0001815
 ```
 
 ###### Plots
@@ -4813,7 +5349,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=PiN_over_PiS))+
      xlab("Amino acid dissimilarity \n(Grantham's distance)")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "dmel_piN_piS_vs_Grantham_dyak.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_piN_piS_vs_Grantham_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Grantham score
 ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
@@ -4827,7 +5363,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_Grantham_dyak.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Grantham_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -4840,7 +5376,19 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_dyak.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+
+# Correlation between Pr(Pos) and grantham score
+ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=GammaExpo.pos_prop))+
+     geom_point(size=2)+
+     geom_smooth(method="loess",col="black")+
+     geom_point(size=2)+
+     theme_classic()+
+     theme(axis.title = element_text(size=20),axis.text = element_text(size=15),legend.position="top",legend.title=element_blank())+
+     xlab("Amino acid dissimilarity \n(Grantham's distance)")+
+     ylab("Pr(Pos)")+ylim(c(0,0.1))
+
+ggsave(filename = "dmel_PrPos_vs_Grantham_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ###### folded
@@ -4919,7 +5467,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_Grantham_dyak_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Grantham_dyak_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -4932,7 +5480,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_dyak_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Grantham_dyak_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ### MKT (Phylostrata)
@@ -5160,6 +5708,9 @@ cor.test(dd2$phylostrata,dd2$PiN_over_PiS_ratio,method="spearman")
 #rho=0.3216783, p=0.3083
 cor.test(dd2$phylostrata,dd2$omegaNA_ratio,method="spearman")
 #rho=-0.06293706, p=0.8517
+cor.test(dd$phylostrata[dd$chromosome=="Autosomes"],dd$GammaExpo.pos_prop[dd$chromosome=="Autosomes"],method="spearman")
+#rho=0.05594406, p=0.869
+cor.test(dd$phylostrata[dd$chromosome=="X"],dd$GammaExpo.pos_prop[dd$chromosome=="X"],method="spearman")
 ```
 
 ##### Plots
@@ -5176,7 +5727,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=phylostrata,y=PiN_over_PiS))+
      ylab(expression(Pi[N]/Pi[S]))+
      scale_x_continuous(breaks = seq(1, 12, by = 1))
 
-ggsave(filename = "dmel_piN_piS_vs_Phylostratum.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_piN_piS_vs_Phylostratum.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Phylostrata
 ggplot(dd,aes(x=phylostrata,y=omegaA,col=chromosome,fill=chromosome))+
@@ -5191,7 +5742,7 @@ ggplot(dd,aes(x=phylostrata,y=omegaA,col=chromosome,fill=chromosome))+
   ylab(expression(omega[A]))+
      scale_x_continuous(breaks = seq(1, 12, by = 1))
 
-ggsave(filename = "dmel_omegaA_vs_Phylostratum.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Phylostratum.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Phylostrata
 ggplot(dd2,aes(x=phylostrata,y=omegaA_ratio))+
@@ -5205,7 +5756,31 @@ ggplot(dd2,aes(x=phylostrata,y=omegaA_ratio))+
   scale_y_continuous(trans='log2',limits=c(0.25,4))+
   scale_x_continuous(breaks = seq(1, 12, by = 1))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Phylostratum.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Phylostratum.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+
+ggplot(subset(dd,chromosome=="Autosomes"),aes(x=phylostrata,y=GammaExpo.pos_prop))+
+     geom_point(size=2)+
+     geom_smooth(method="loess",col="black")+
+     geom_point(size=2)+
+     theme_classic()+
+     theme(axis.title = element_text(size=20),axis.text = element_text(size=15),legend.position="top",legend.title=element_blank())+
+     xlab("Phylostratum")+
+     ylab("Pr(Pos)")+
+     scale_x_continuous(breaks = seq(1, 12, by = 1))
+
+ggsave(filename = "dmel_PrPos_vs_Phylostratum.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+
+# Correlation between x.avg and grantham score
+ggplot(subset(dd,chromosome=="Autosomes"),aes(x=phylostrata,y=inv_fun(GammaExpo.pos_prop)))+
+     geom_point(size=2)+
+     geom_smooth(method="loess",col="black")+
+     geom_point(size=2)+
+     theme_classic()+
+     theme(axis.title = element_text(size=20),axis.text = element_text(size=15),legend.position="top",legend.title=element_blank())+
+     xlab("Phylostratum")+
+     ylab("Inferred average scaled effect")+ylim(c(-5,35))
+     
+ggsave(filename = "dmel_avgx_vs_Phylostratum.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ##### folded
@@ -5269,7 +5844,7 @@ ggplot(dd,aes(x=phylostrata,y=omegaA,col=chromosome,fill=chromosome))+
   ylab(expression(omega[A]))+
      scale_x_continuous(breaks = seq(1, 12, by = 1))
 
-ggsave(filename = "dmel_omegaA_vs_Phylostratum_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Phylostratum_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Phylostrata
 ggplot(dd2,aes(x=phylostrata,y=omegaA_ratio))+
@@ -5283,7 +5858,7 @@ ggplot(dd2,aes(x=phylostrata,y=omegaA_ratio))+
   scale_y_continuous(trans='log2',limits=c(0.25,4))+
   scale_x_continuous(breaks = seq(1, 12, by = 1))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Phylostratum_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Phylostratum_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ### *D. yak* outgroup
@@ -5508,6 +6083,8 @@ cor.test(dd2$phylostrata,dd2$PiN_over_PiS_ratio,method="spearman")
 #rho=0.4405594, p=0.1542
 cor.test(dd2$phylostrata,dd2$omegaNA_ratio,method="spearman")
 #rho=-0.1048951, p=0.7495
+cor.test(dd$phylostrata[dd$chromosome=="Autosomes"],dd$GammaExpo.pos_prop[dd$chromosome=="Autosomes"],method="spearman")
+#rho=0.3286713, p=0.2974
 ```
 
 ##### Plots
@@ -5524,7 +6101,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=phylostrata,y=PiN_over_PiS))+
      ylab(expression(Pi[N]/Pi[S]))+
      scale_x_continuous(breaks = seq(1, 12, by = 1))
 
-ggsave(filename = "dmel_piN_piS_vs_Phylostratum_dyak.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_piN_piS_vs_Phylostratum_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Phylostrata
 ggplot(dd,aes(x=phylostrata,y=omegaA,col=chromosome,fill=chromosome))+
@@ -5539,7 +6116,7 @@ ggplot(dd,aes(x=phylostrata,y=omegaA,col=chromosome,fill=chromosome))+
   ylab(expression(omega[A]))+
      scale_x_continuous(breaks = seq(1, 12, by = 1))
 
-ggsave(filename = "dmel_omegaA_vs_Phylostratum_dyak.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Phylostratum_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Phylostrata
 ggplot(dd2,aes(x=phylostrata,y=omegaA_ratio))+
@@ -5553,7 +6130,20 @@ ggplot(dd2,aes(x=phylostrata,y=omegaA_ratio))+
   scale_y_continuous(trans='log2',limits=c(0.25,4))+
   scale_x_continuous(breaks = seq(1, 12, by = 1))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Phylostratum_dyak.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Phylostratum_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+
+
+ggplot(subset(dd,chromosome=="Autosomes"),aes(x=phylostrata,y=GammaExpo.pos_prop))+
+     geom_point(size=2)+
+     geom_smooth(method="loess",col="black")+
+     geom_point(size=2)+
+     theme_classic()+
+     theme(axis.title = element_text(size=20),axis.text = element_text(size=15),legend.position="top",legend.title=element_blank())+
+     xlab("Phylostratum")+
+     ylab("Pr(Pos)")+
+     scale_x_continuous(breaks = seq(1, 12, by = 1))
+
+ggsave(filename = "dmel_PrPos_vs_Phylostratum_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ##### folded
@@ -5615,7 +6205,7 @@ ggplot(dd,aes(x=phylostrata,y=omegaA,col=chromosome,fill=chromosome))+
   ylab(expression(omega[A]))+
      scale_x_continuous(breaks = seq(1, 12, by = 1))
 
-ggsave(filename = "dmel_omegaA_vs_Phylostratum_folded_dyak.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_Phylostratum_folded_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Phylostrata
 ggplot(dd2,aes(x=phylostrata,y=omegaA_ratio))+
@@ -5629,7 +6219,7 @@ ggplot(dd2,aes(x=phylostrata,y=omegaA_ratio))+
   scale_y_continuous(trans='log2',limits=c(0.25,4))+
   scale_x_continuous(breaks = seq(1, 12, by = 1))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_Phylostratum_folded_dyak.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_Phylostratum_folded_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ### MKT (SIFT scores)
@@ -6135,25 +6725,27 @@ omegaNA.r <- vector()
 Pn_over_Ps.r <- vector()
 PiN_over_PiS.r <- vector()
 PiN_over_PiS.a <- vector()
+PrPos.a <- vector()
 k <- 1
 for (j in 1:3){
 for (i in 1:1000){
   dd.X <- subset(dd,chromosome=="X" & sift==j)
   dd.A <- subset(dd,chromosome=="A" & sift==j)
   s.X <- dd.X[,c("chromosome","Pn_over_Ps","PiN_over_PiS","omegaA","omegaNA")]
-  s.A <- dd.A[sample(nrow(dd.A),1),c("chromosome","Pn_over_Ps","PiN_over_PiS","omegaA","omegaNA")]
+  s.A <- dd.A[sample(nrow(dd.A),1),c("chromosome","Pn_over_Ps","PiN_over_PiS","omegaA","omegaNA","GammaExpo.pos_prop")]
   omegaA.r[k] <- s.X$omegaA/s.A$omegaA
   omegaNA.r[k] <- s.X$omegaNA/s.A$omegaNA
   Pn_over_Ps.r[k] <- s.X$Pn_over_Ps/s.A$Pn_over_Ps
   PiN_over_PiS.r[k] <- s.X$PiN_over_PiS/s.A$PiN_over_PiS
   PiN_over_PiS.a[k] <- s.A$PiN_over_PiS
+  PrPos.a[k] <- s.A$GammaExpo.pos_prop
   k <- k + 1
 }
 }
 
 # Dataframe for X/A ratio plots
-dd2 <- data.frame(omegaA.r,omegaNA.r,Pn_over_Ps.r,PiN_over_PiS.r,PiN_over_PiS.a)
-names(dd2) <- c("omegaA_ratio","omegaNA_ratio","Pn_over_Ps_ratio","PiN_over_PiS_ratio","PiN_over_PiS.a")
+dd2 <- data.frame(omegaA.r,omegaNA.r,Pn_over_Ps.r,PiN_over_PiS.r,PiN_over_PiS.a,PrPos.a)
+names(dd2) <- c("omegaA_ratio","omegaNA_ratio","Pn_over_Ps_ratio","PiN_over_PiS_ratio","PiN_over_PiS.a","PrPos.a")
 dd2$sift <- c(rep("1",1000),rep("2",1000),rep("3",1000))
 dd2$omegaA_ratio[dd2$omegaA_ratio=="Inf"] <-  10^3
 dd2$omegaNA_ratio[dd2$omegaNA_ratio=="Inf"] <-  10^3
@@ -6192,7 +6784,7 @@ ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=PiN_over_PiS.a))+
      xlab("SIFT category")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "dmel_PiN_PiS_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_PiN_PiS_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs SIFT
 ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
@@ -6205,7 +6797,7 @@ ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
   xlab("SIFT category")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs SIFT
 ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
@@ -6218,7 +6810,27 @@ ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+
+ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=PrPos.a))+
+     stat_summary(fun.data="mean_sdl",fun.args = list(mult = 1))+
+     theme_classic()+
+     theme(axis.title = element_text(size=20),axis.text = element_text(size=15),legend.position="top",legend.title=element_blank(),axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+     xlab("SIFT category")+
+     ylab("Pr(Pos)")
+
+ggsave(filename = "dmel_PrPos_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+
+
+ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=inv_fun(PrPos.a)))+
+     stat_summary(fun.data="mean_sdl",fun.args = list(mult = 1))+
+     theme_classic()+
+     theme(axis.title = element_text(size=20),axis.text = element_text(size=15),legend.position="top",legend.title=element_blank(),axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+     xlab("SIFT category")+
+     ylab("Inferred average \nscaled effect")+ylim(c(0,100))
+
+ggsave(filename = "dmel_avgx_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+
 ```
 
 ##### folded
@@ -6342,7 +6954,7 @@ ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
   xlab("SIFT category")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_SIFT_bin_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_SIFT_bin_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs SIFT
 ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
@@ -6355,7 +6967,7 @@ ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_SIFT_bin_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_SIFT_bin_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ### *D. yak* outgroup
@@ -6669,24 +7281,28 @@ omegaA.r <- vector()
 omegaNA.r <- vector()
 Pn_over_Ps.r <- vector()
 PiN_over_PiS.r <- vector()
+PiN_over_PiS.a <- vector()
+PrPos.a <- vector()
 k <- 1
 for (j in 1:3){
 for (i in 1:1000){
   dd.X <- subset(dd,chromosome=="X" & sift==j)
   dd.A <- subset(dd,chromosome=="A" & sift==j)
   s.X <- dd.X[,c("chromosome","Pn_over_Ps","PiN_over_PiS","omegaA","omegaNA")]
-  s.A <- dd.A[sample(nrow(dd.A),1),c("chromosome","Pn_over_Ps","PiN_over_PiS","omegaA","omegaNA")]
+  s.A <- dd.A[sample(nrow(dd.A),1),c("chromosome","Pn_over_Ps","PiN_over_PiS","omegaA","omegaNA","GammaExpo.pos_prop")]
   omegaA.r[k] <- s.X$omegaA/s.A$omegaA
   omegaNA.r[k] <- s.X$omegaNA/s.A$omegaNA
   Pn_over_Ps.r[k] <- s.X$Pn_over_Ps/s.A$Pn_over_Ps
   PiN_over_PiS.r[k] <- s.X$PiN_over_PiS/s.A$PiN_over_PiS
+  PiN_over_PiS.a[k] <- s.A$PiN_over_PiS
+  PrPos.a[k] <- s.A$GammaExpo.pos_prop
   k <- k + 1
 }
 }
 
 # Dataframe for X/A ratio plots
-dd2 <- data.frame(omegaA.r,omegaNA.r,Pn_over_Ps.r,PiN_over_PiS.r)
-names(dd2) <- c("omegaA_ratio","omegaNA_ratio","Pn_over_Ps_ratio","PiN_over_PiS_ratio")
+dd2 <- data.frame(omegaA.r,omegaNA.r,Pn_over_Ps.r,PiN_over_PiS.r,PiN_over_PiS.a,PrPos.a)
+names(dd2) <- c("omegaA_ratio","omegaNA_ratio","Pn_over_Ps_ratio","PiN_over_PiS_ratio","PiN_over_PiS.a","PrPos.a")
 dd2$sift <- c(rep("1",1000),rep("2",1000),rep("3",1000))
 dd2$omegaA_ratio[dd2$omegaA_ratio=="Inf"] <-  10^3
 dd2$omegaNA_ratio[dd2$omegaNA_ratio=="Inf"] <-  10^3
@@ -6717,7 +7333,7 @@ ggplot(subset(dd,sift!="tolerated" & chromosome=="Autosomes"),aes(x=sift,y=PiN_o
      xlab("SIFT category")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "dmel_PiN_PiS_vs_SIFT_bin_dyak.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_PiN_PiS_vs_SIFT_bin_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs SIFT
 ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
@@ -6730,7 +7346,7 @@ ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
   xlab("SIFT category")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_SIFT_bin_dyak.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_SIFT_bin_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs SIFT
 ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
@@ -6743,7 +7359,16 @@ ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_SIFT_bin_dyak.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_SIFT_bin_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+
+ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=PrPos.a))+
+     stat_summary(fun.data="mean_sdl",fun.args = list(mult = 1))+
+     theme_classic()+
+     theme(axis.title = element_text(size=20),axis.text = element_text(size=15),legend.position="top",legend.title=element_blank(),axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+     xlab("SIFT category")+
+     ylab("Pr(Pos)")
+
+ggsave(filename = "dmel_PrPos_vs_SIFT_bin_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ##### folded
@@ -6867,7 +7492,7 @@ ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
   xlab("SIFT category")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "dmel_omegaA_vs_SIFT_bin_folded_dyak.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_SIFT_bin_folded_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs SIFT
 ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
@@ -6880,10 +7505,10 @@ ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "dmel_omegaA_ratio_vs_SIFT_bin_folded_dyak.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_ratio_vs_SIFT_bin_folded_dyak.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
-### MKT (RR bins)
+### MKT (\~1Mb RR bins, alt. strategy)
 
 ### *D. sim* outgroup
 
@@ -6894,6 +7519,11 @@ ggsave(filename = "dmel_omegaA_ratio_vs_SIFT_bin_folded_dyak.png",path="~/Dropbo
 ```{r}
 dmel.X.m <- fread(paste0(dir,"dmel/mkt/dmel.X.m.dsim_outgroup"))
 dmel.A.m <- fread(paste0(dir,"dmel/mkt/dmel.A.m.dsim_outgroup"))
+
+# Split sites into RR bins and record value of RR
+# This will replace the original RR_bin vector
+dmel.X.m$RR_bin <- cut2(dmel.X.m$cM_Mb, g=20,levels.mean=T)
+dmel.A.m$RR_bin <- cut2(dmel.A.m$cM_Mb, g=80,levels.mean=T)
 
 # To get grapes to work, we set the maximum number of sequences in the sample to be 20 (in case it's more)
 n_sequences <- 20
@@ -6975,6 +7605,10 @@ write.table(data.frame(cbind(1:length(bins),bins)),paste0(dir,"dmel/mkt/grapes/d
 dmel.X.m <- fread(paste0(dir,"dmel/mkt/dmel.X.m.dsim_outgroup"))
 dmel.A.m <- fread(paste0(dir,"dmel/mkt/dmel.A.m.dsim_outgroup"))
 
+# This will replace the original RR_bin vector
+dmel.X.m$RR_bin <- cut2(dmel.X.m$cM_Mb, g=20,levels.mean=T)
+dmel.A.m$RR_bin <- cut2(dmel.A.m$cM_Mb, g=80,levels.mean=T)
+
 # To get grapes to work, we set the maximum number of sequences in the sample to be 20 (in case it's more)
 n_sequences <- 20
 max_sequences <- max(dmel.A.m$AN,na.rm=T)
@@ -7053,7 +7687,7 @@ write.table(data.frame(cbind(1:length(bins),bins)),paste0(dir,"dmel/mkt/grapes/d
 
 ```{r}
 # X-linked bins
-dmel.X.m <- fread(paste0(dir,"dmel/mkt/dmel.X.m.dsim_outgroup"))
+#dmel.X.m <- fread(paste0(dir,"dmel/mkt/dmel.X.m.dsim_outgroup"))
 bins <- levels(factor(dmel.X.m$RR_bin))
 # Import measures of adaptation, split by gene
 dd.X <- list()
@@ -7069,12 +7703,11 @@ dd.X[[i]] <- dd.X.tmp
   }
 dd.X <- do.call(rbind,dd.X)
 dd.X$Chrom <- "X"
-dd.X <- merge(dd.X,rr.X[,c("Chrom","RR_bin","cM_Mb","Midpoint")],by=c("Chrom","RR_bin"),all.x=T)
 dd.X$chromosome <- "X"
-rm(dmel.X.m)
+#rm(dmel.X.m)
 
 # Autosomal bins
-dmel.A.m <- fread(paste0(dir,"dmel/mkt/dmel.A.m.dsim_outgroup"))
+#dmel.A.m <- fread(paste0(dir,"dmel/mkt/dmel.A.m.dsim_outgroup"))
 bins <- levels(factor(dmel.A.m$RR_bin))
 # Import measures of adaptation, split by gene
 dd.A <- list()
@@ -7089,10 +7722,9 @@ for (i in 1:length(bins)){
   next
 }
 dd.A <- do.call(rbind,dd.A)
-dd.A$Chrom <- ifelse(grepl("2L",dd.A$RR_bin),"2L",ifelse(grepl("2R",dd.A$RR_bin),"2R",ifelse(grepl("3L",dd.A$RR_bin),"3L",ifelse(grepl("3R",dd.A$RR_bin),"3R",NA))))
-dd.A <- merge(dd.A,rr.A[,c("Chrom","RR_bin","cM_Mb","Midpoint")],by=c("Chrom","RR_bin"),all.x=T)
+dd.A$Chrom <- "A"
 dd.A$chromosome <- "A"
-rm(dmel.A.m)
+#rm(dmel.A.m)
 
 dd <- rbind(dd.A,dd.X)
 
@@ -7114,6 +7746,9 @@ dd$omegaNA[dd$omegaNA<0] <- 0
 dd$alpha[dd$alpha<0] <- 0
 dd$Pn_over_Ps[dd$Pn_over_Ps<0] <- 0
 
+# Convert RR bins to bins of effective recombination rate 
+dd$cM_Mb <- with(dd,ifelse(dd$chromosome=="A",as.numeric(as.character(RR_bin))*0.5,as.numeric(as.character(RR_bin))*2/3))
+
 #Sliding windows
 dd <- dd[order(dd$chromosome,dd$cM_Mb),]
 dd$alpha_sw[dd$chromosome=="A"] <- slide_dbl(dd$alpha[dd$chromosome=="A"], ~mean(.x), .before = 2, .after = 2)
@@ -7128,90 +7763,37 @@ dd$Pn_over_Ps_sw[dd$chromosome=="X"] <- slide_dbl(dd$Pn_over_Ps[dd$chromosome=="
 dd.X <- subset(dd,chromosome=="X")
 dd.A <- subset(dd,chromosome!="X")
 
-# For each X-linked gene, pair with a random autosomal gene, and calculate X/A ratios of the relevant metrics
-set.seed(12)
-cM_Mb.r <- vector()
-omegaA.r <- vector()
-omegaNA.r <- vector()
-dN_over_dS.r <- vector()
-Pn_over_Ps.r <- vector()
-cM_Mb_vs_omegaA.r.cor <- vector()
-for (j in 1:1000){
-for (i in 1:nrow(dd.X)){
-  s.X <- dd.X[i,c("chromosome","Pn_over_Ps","omegaA","omegaNA","dN_over_dS","cM_Mb")]
-  s.A <- dd.A[sample(nrow(dd.A),1),c("chromosome","Pn_over_Ps","omegaA","omegaNA","dN_over_dS","cM_Mb")]
-  cM_Mb.r[i] <- s.X$cM_Mb/s.A$cM_Mb
-  omegaA.r[i] <- s.X$omegaA/s.A$omegaA
-  omegaNA.r[i] <- s.X$omegaNA/s.A$omegaNA
-  dN_over_dS.r[i] <- s.X$dN_over_dS/s.A$dN_over_dS
-  Pn_over_Ps.r[i] <- s.X$Pn_over_Ps/s.A$Pn_over_Ps
-}
-  cM_Mb_vs_omegaA.r.cor[j] <- cor.test(cM_Mb.r,omegaA.r,method="spearman")$estimate
-  if (j %% 100 == 0) {
-    print(j)
-  }
-}
-
-dd$chromosome <- factor(dd$chromosome)
+dd$chromosome <- as.factor(dd$chromosome)
 levels(dd$chromosome) <- c("Autosomes","X")
-dd2 <- data.frame(omegaA.r,omegaNA.r,dN_over_dS.r,Pn_over_Ps.r,cM_Mb.r)
-names(dd2) <- c("omegaA","omegaNA","dN_over_dS","Pn_over_Ps","cM_Mb")
-
-dd3 <- data.frame(cM_Mb_vs_omegaA.r.cor,1:1000)
-names(dd3) <- c("Correlation","Simulation")
 
 # Statistics
+summary(glm(data=dd,omegaA~cM_Mb+chromosome))
 median(glm(data=dd,omegaA~cM_Mb)$residuals[dd$chromosome=="Autosomes"])
-# -0.03145606
-median(glm(data=dd,omegaA~cM_Mb)$residuals[dd$chromosome=="Autosomes"])
-# 0.01190238
+# -0.00912353
+median(glm(data=dd,omegaA~cM_Mb)$residuals[dd$chromosome=="X"])
+# 0.03937645
 wilcox.test(glm(data=dd,omegaA~cM_Mb)$residuals[dd$chromosome=="Autosomes"],glm(data=dd,omegaA~cM_Mb)$residuals[dd$chromosome=="X"])
-# W = 66121, p-value = 7.828e-10
+# W = 386, p-value = 0.0009057
 
-mean(dd3$Correlation)
-sum(dd3$Correlation<0)/1000
-# 0.1348503, p = 0.02
+wilcox.test(rr.A$cM_Mb,rr.X$cM_Mb)
+#W = 72904, p-value = 9.049e-15
 ```
 
 ##### Plots
 
 ```{r}
-ggplot(dd,aes(x=cM_Mb,y=omegaA_sw))+
+ggplot(dd,aes(x=cM_Mb,y=omegaA))+
   scale_color_brewer(palette = "Set1")+
   scale_fill_brewer(palette = "Set1")+
   geom_point(size=2, aes(col=chromosome,fill=chromosome))+
-  geom_smooth(method="lm",aes(fill=chromosome),col="black")+
+  geom_smooth(method="lm",aes(fill=chromosome,col=chromosome))+
   theme_classic()+
   ylab(expression(omega[A]))+
   xlab("cM/Mb")+
   theme(axis.title = element_text(size=20),axis.text = element_text(size=20),legend.position="top",legend.title=element_blank())+
-  ylim(c(0,0.55))
+  ylim(c(0,0.31))
 
-ggsave(filename = "dmel_omegaA_vs_cM_Mb.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
-
-ggplot(dd2,aes(x=cM_Mb,y=omegaA))+
-  geom_point(size=2)+
-  geom_smooth(method="lm",col="black")+
-  theme_classic()+
-  theme(axis.title = element_text(size=20),axis.text = element_text(size=20))+
-  xlab("cM/Mb (X/A ratio)")+
-  ylab(expression(omega[A]~(X/A~ratio)))+
-  scale_x_continuous(trans='log2',limits = c(0.2,5))+ 
-  scale_y_continuous(trans='log2',limits = c(0.2,5))+
-  geom_hline(yintercept=1,lty=3)+
-  geom_vline(xintercept=1,lty=3)
-
-ggsave(filename = "dmel_RxRa_omegaA_vs_cM_Mb.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
-
-ggplot(dd3,aes(x=Correlation))+
-    geom_histogram(fill="grey",col="black")+
-    theme_classic()+
-    theme(axis.title = element_text(size=20),axis.text = element_text(size=20))+
-    xlab(expression(rho(omega[A]*"(X/A ratio),"~"cM/Mb(X/A ratio)")))+
-    ylab("Density")+
-    geom_vline(xintercept=0,lty=3)
-
-ggsave(filename = "dmel_RxRa_omegaA_vs_cM_Mb_hist.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "dmel_omegaA_vs_cM_Mb_04.08.26.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ## *Mus musculus*
@@ -9292,7 +9874,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=PiN_over_PiS))+
      xlab("Amino acid dissimilarity \n(Grantham's distance)")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "mmus_piN_piS_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_piN_piS_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Grantham score
 ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
@@ -9306,7 +9888,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "mmus_omegaA_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -9319,7 +9901,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "mmus_omegaA_ratio_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_ratio_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ###### folded
@@ -9396,7 +9978,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "mmus_omegaA_vs_Grantham_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_vs_Grantham_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -9409,7 +9991,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "mmus_omegaA_ratio_vs_Grantham_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_ratio_vs_Grantham_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ##### 0 vs. 4-fold
@@ -9519,7 +10101,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=PiN_over_PiS))+
      xlab("Amino acid dissimilarity \n(Grantham's distance)")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "mmus_piN_piS_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_piN_piS_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Grantham score
 ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
@@ -9533,7 +10115,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "mmus_omegaA_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -9546,7 +10128,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "mmus_omegaA_ratio_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_ratio_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ### M. pahari outgroup
@@ -10037,7 +10619,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=PiN_over_PiS))+
      xlab("Amino acid dissimilarity \n(Grantham's distance)")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "mmus_piN_piS_vs_Grantham_mpah.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_piN_piS_vs_Grantham_mpah.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Grantham score
 ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
@@ -10051,7 +10633,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "mmus_omegaA_vs_Grantham_mpah.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_vs_Grantham_mpah.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -10064,7 +10646,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "mmus_omegaA_ratio_vs_Grantham_mpah.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_ratio_vs_Grantham_mpah.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ###### folded
@@ -10141,7 +10723,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "mmus_omegaA_vs_Grantham_mpah_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_vs_Grantham_mpah_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -10154,7 +10736,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "mmus_omegaA_ratio_vs_Grantham_mpah_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_ratio_vs_Grantham_mpah_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ### MKT (SIFT scores)
@@ -10519,7 +11101,7 @@ ggplot(subset(dd,sift!="tolerated" & chromosome=="Autosomes"),aes(x=sift,y=PiN_o
       xlab("SIFT category")+
       ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "mmus_PiN_PiS_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_PiN_PiS_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs SIFT
 ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
@@ -10532,7 +11114,7 @@ ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
   xlab("SIFT category")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "mmus_omegaA_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs SIFT
 ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
@@ -10545,7 +11127,7 @@ ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "mmus_omegaA_ratio_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_ratio_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ##### folded
@@ -10669,7 +11251,7 @@ ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
   xlab("SIFT category")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "mmus_omegaA_vs_SIFT_bin_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_vs_SIFT_bin_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs SIFT
 ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
@@ -10682,7 +11264,7 @@ ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "mmus_omegaA_ratio_vs_SIFT_bin_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_ratio_vs_SIFT_bin_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ### *M. pah* outgroup
@@ -11044,7 +11626,7 @@ ggplot(subset(dd,sift!="tolerated" & chromosome=="Autosomes"),aes(x=sift,y=PiN_o
       xlab("SIFT category")+
       ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "mmus_PiN_PiS_vs_SIFT_bin_mpah.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_PiN_PiS_vs_SIFT_bin_mpah.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs SIFT
 ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
@@ -11057,7 +11639,7 @@ ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
   xlab("SIFT category")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "mmus_omegaA_vs_SIFT_bin_mpah.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_vs_SIFT_bin_mpah.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs SIFT
 ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
@@ -11070,7 +11652,7 @@ ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "mmus_omegaA_ratio_vs_SIFT_bin_mpah.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_ratio_vs_SIFT_bin_mpah.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ##### folded
@@ -11194,7 +11776,7 @@ ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
   xlab("SIFT category")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "mmus_omegaA_vs_SIFT_bin_folded_mpah.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_vs_SIFT_bin_folded_mpah.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs SIFT
 ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
@@ -11207,7 +11789,7 @@ ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "mmus_omegaA_ratio_vs_SIFT_bin_folded_mpah.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "mmus_omegaA_ratio_vs_SIFT_bin_folded_mpah.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ### *Homo sapiens*
@@ -11441,6 +12023,12 @@ hsap.A.ann <- hsap.A.ann[,c("Chrom","Pos","ID","REF","REF_fwd","Transcript","Gen
 #write.table(hsap.A.ann,"~/Downloads/hsap.A.ann.txt",quote=F,row.names=F)
 #hsap.A.ann <- fread("~/Downloads/hsap.A.ann.txt")
 #hsap.A.ann$Chrom <- as.factor(hsap.A.ann$Chrom)
+```
+
+```{bash}
+# Look for X/autosome enrichment in Soni & Eyre-Walker 2022 dataset
+awk -F',' 'NR>1 {genes[$1]=1} $3=="gene" {if ($9 ~ /Name=|gene_name=|gene=/) {for (g in genes) if ($9 ~ g) {if (!seen[g]) {print g "\t" $1 "\t" $4 "\t" $5; seen[g]=1}}}}' ../../../metadata/Soni2022/S2.csv gencode.v47.basic.annotation.gff3 > S2_locations.tsv;
+awk 'NR==FNR{g[$1]=1;next} $3=="gene"{for(x in g) if($9~x && !seen[x]){print x "\t" $1; seen[x]=1}}' S2_gene_names.csv ../../processing/downloads/gff/gencode.v47.basic.annotation.gff3 > S2_gene_locations.tsv;
 ```
 
 ### Polymorphism
@@ -13095,7 +13683,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=PiN_over_PiS))+
      xlab("Amino acid dissimilarity \n(Grantham's distance)")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "hsap_piN_piS_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_piN_piS_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Grantham score
 ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
@@ -13109,7 +13697,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "hsap_omegaA_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -13122,7 +13710,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "hsap_omegaA_ratio_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_ratio_vs_Grantham.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ###### folded
@@ -13199,7 +13787,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "hsap_omegaA_vs_Grantham_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_vs_Grantham_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -13212,7 +13800,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "hsap_omegaA_ratio_vs_Grantham_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_ratio_vs_Grantham_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ##### 0 vs. 4-fold
@@ -13322,7 +13910,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=PiN_over_PiS))+
      xlab("Amino acid dissimilarity \n(Grantham's distance)")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "hsap_piN_piS_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_piN_piS_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Grantham score
 ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
@@ -13336,7 +13924,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "hsap_omegaA_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -13349,7 +13937,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "hsap_omegaA_ratio_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_ratio_vs_Grantham_zerofour.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ### G. gorilla outgroup
@@ -13839,7 +14427,7 @@ ggplot(subset(dd,chromosome=="Autosomes"),aes(x=grantham_score,y=PiN_over_PiS))+
      xlab("Amino acid dissimilarity \n(Grantham's distance)")+
      ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "hsap_piN_piS_vs_Grantham_ggor.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_piN_piS_vs_Grantham_ggor.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs Grantham score
 ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
@@ -13853,7 +14441,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "hsap_omegaA_vs_Grantham_ggor.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_vs_Grantham_ggor.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -13866,7 +14454,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "hsap_omegaA_ratio_vs_Grantham_ggor.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_ratio_vs_Grantham_ggor.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ###### folded
@@ -13943,7 +14531,7 @@ ggplot(dd,aes(x=grantham_score,y=omegaA,col=chromosome,fill=chromosome))+
   xlab("Amino acid dissimilarity \n(Grantham's distance)")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "hsap_omegaA_vs_Grantham_ggor_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_vs_Grantham_ggor_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs Grantham score
 ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
@@ -13956,7 +14544,7 @@ ggplot(dd2,aes(x=grantham_score,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "hsap_omegaA_ratio_vs_Grantham_ggor_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_ratio_vs_Grantham_ggor_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ### MKT (SIFT scores)
@@ -14320,7 +14908,7 @@ ggplot(subset(dd,sift!="tolerated" & chromosome=="Autosomes"),aes(x=sift,y=PiN_o
       xlab("SIFT category")+
       ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "hsap_PiN_PiS_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_PiN_PiS_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs SIFT
 ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
@@ -14333,7 +14921,7 @@ ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
   xlab("SIFT category")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "hsap_omegaA_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs SIFT
 ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
@@ -14346,7 +14934,7 @@ ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "hsap_omegaA_ratio_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_ratio_vs_SIFT_bin.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ##### folded
@@ -14470,7 +15058,7 @@ ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
   xlab("SIFT category")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "hsap_omegaA_vs_SIFT_bin_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_vs_SIFT_bin_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs SIFT
 ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
@@ -14483,7 +15071,7 @@ ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "hsap_omegaA_ratio_vs_SIFT_bin_folded.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_ratio_vs_SIFT_bin_folded.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ### *G. gor* outgroup
@@ -14845,7 +15433,7 @@ ggplot(subset(dd,sift!="tolerated" & chromosome=="Autosomes"),aes(x=sift,y=PiN_o
       xlab("SIFT category")+
       ylab(expression(Pi[N]/Pi[S]))
 
-ggsave(filename = "hsap_PiN_PiS_vs_SIFT_bin_ggor.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_PiN_PiS_vs_SIFT_bin_ggor.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA vs SIFT
 ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
@@ -14858,7 +15446,7 @@ ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
   xlab("SIFT category")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "hsap_omegaA_vs_SIFT_bin_ggor.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_vs_SIFT_bin_ggor.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs SIFT
 ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
@@ -14871,7 +15459,7 @@ ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "hsap_omegaA_ratio_vs_SIFT_bin_ggor.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_ratio_vs_SIFT_bin_ggor.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
 
 ##### folded
@@ -14995,7 +15583,7 @@ ggplot(subset(dd,sift!="tolerated"),aes(x=sift,y=omegaA,col=chromosome))+
   xlab("SIFT category")+
   ylab(expression(omega[A]))
 
-ggsave(filename = "hsap_omegaA_vs_SIFT_bin_folded_ggor.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_vs_SIFT_bin_folded_ggor.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 
 # omegaA ratio vs SIFT
 ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
@@ -15008,5 +15596,5 @@ ggplot(subset(dd2,sift!="tolerated"),aes(x=sift,y=omegaA_ratio))+
   geom_hline(yintercept = 1,lty=3)+
   scale_y_continuous(trans='log2',limits=c(0.25,4))
 
-ggsave(filename = "hsap_omegaA_ratio_vs_SIFT_bin_folded_ggor.png",path="~/Dropbox/dropbox_work/projects/assorted_fasterX_repo/plots/mutation_size/", width = 5, height = 5, dpi = 600)
+ggsave(filename = "hsap_omegaA_ratio_vs_SIFT_bin_folded_ggor.png",path="~/Dropbox/dropbox_work/projects/fasterX_mutation_size/plots/mutation_size/", width = 5, height = 5, dpi = 600)
 ```
